@@ -19,6 +19,7 @@ import (
 	"github.com/siderolabs/gen/xslices"
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/cosi-project/state-etcd/pkg/util"
 )
@@ -522,6 +523,7 @@ func (st *State) watchKind(ctx context.Context, resourceKind resource.Kind, sing
 
 	// wrap the context to make sure Watch is aborted if the loop terminates
 	ctx, cancel := context.WithCancel(ctx)
+	ctx = metadata.NewOutgoingContext(ctx, metadata.MD{})
 	ctx = clientv3.WithRequireLeader(ctx)
 
 	watchCh := st.cli.Watch(ctx, etcdKey, clientv3.WithPrefix(), clientv3.WithPrevKV(), clientv3.WithRev(revision))
