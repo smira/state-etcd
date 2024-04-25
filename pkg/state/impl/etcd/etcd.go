@@ -8,6 +8,7 @@ package etcd
 import (
 	"context"
 	"fmt"
+	"log"
 	"sort"
 	"strconv"
 	"time"
@@ -402,6 +403,7 @@ func (st *State) Watch(ctx context.Context, resourcePointer resource.Pointer, ch
 			}
 		}()
 		defer cancel()
+		defer log.Printf("exiting Watch")
 
 		if !channel.SendWithContext(ctx, ch, initialEvent) {
 			return
@@ -415,6 +417,8 @@ func (st *State) Watch(ctx context.Context, resourcePointer resource.Pointer, ch
 
 			select {
 			case <-ctx.Done():
+				log.Printf("context canceled")
+
 				return
 			case watchResponse, ok = <-watchCh:
 				if !ok {
@@ -435,6 +439,8 @@ func (st *State) Watch(ctx context.Context, resourcePointer resource.Pointer, ch
 			}
 
 			if watchResponse.Canceled {
+				log.Printf("watch response canceled")
+
 				return
 			}
 
