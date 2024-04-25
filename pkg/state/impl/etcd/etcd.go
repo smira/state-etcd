@@ -403,7 +403,6 @@ func (st *State) Watch(ctx context.Context, resourcePointer resource.Pointer, ch
 			}
 		}()
 		defer cancel()
-		defer log.Printf("exiting Watch")
 
 		if !channel.SendWithContext(ctx, ch, initialEvent) {
 			return
@@ -417,8 +416,6 @@ func (st *State) Watch(ctx context.Context, resourcePointer resource.Pointer, ch
 
 			select {
 			case <-ctx.Done():
-				log.Printf("context canceled")
-
 				return
 			case watchResponse, ok = <-watchCh:
 				if !ok {
@@ -439,12 +436,14 @@ func (st *State) Watch(ctx context.Context, resourcePointer resource.Pointer, ch
 			}
 
 			if watchResponse.Canceled {
-				log.Printf("watch response canceled")
-
 				return
 			}
 
 			for _, etcdEvent := range watchResponse.Events {
+				if etcdEvent.Kv != nil && etcdEvent.Kv.ModRevision <= revision {
+					continue
+				}
+
 				event, err := st.convertEvent(etcdEvent)
 				if err != nil {
 					channel.SendWithContext(ctx, ch,
@@ -456,6 +455,8 @@ func (st *State) Watch(ctx context.Context, resourcePointer resource.Pointer, ch
 
 					return
 				}
+
+				log.Printf("event: id %s %#+v", resourcePointer.ID(), event)
 
 				if !channel.SendWithContext(ctx, ch, event) {
 					return

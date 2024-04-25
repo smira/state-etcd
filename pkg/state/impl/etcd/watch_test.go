@@ -19,6 +19,51 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
+func TestWatchKindBug2(t *testing.T) {
+	t.Cleanup(func() { goleak.VerifyNone(t, goleak.IgnoreCurrent()) })
+
+	withEtcd(t, func(s state.State) {
+		//s = state.WrapCore(inmem.NewState("default"))
+
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+		defer cancel()
+
+		const N = 10000
+
+		for i := range N {
+			require.NoError(t, s.Create(ctx, conformance.NewPathResource("default", fmt.Sprintf("path-%d", i))))
+		}
+
+		watchCh := make(chan state.Event)
+
+		for i := range N {
+			require.NoError(t, s.Watch(ctx, conformance.NewPathResource("default", fmt.Sprintf("path-%d", i)).Metadata(), watchCh))
+		}
+
+		for range N {
+			select {
+			case <-time.After(time.Second):
+				t.Fatal("timeout waiting for event")
+			case ev := <-watchCh:
+				assert.Equal(t, state.Created, ev.Type)
+			}
+		}
+
+		for i := range N {
+			require.NoError(t, s.Destroy(ctx, conformance.NewPathResource("default", fmt.Sprintf("path-%d", i)).Metadata()))
+		}
+
+		for range N {
+			select {
+			case <-time.After(time.Second):
+				t.Fatal("timeout waiting for event")
+			case ev := <-watchCh:
+				assert.Equal(t, state.Destroyed, ev.Type, "ev: %v", ev.Resource)
+			}
+		}
+	})
+}
+
 func TestWatchKindBug(t *testing.T) {
 	t.Cleanup(func() { goleak.VerifyNone(t, goleak.IgnoreCurrent()) })
 
